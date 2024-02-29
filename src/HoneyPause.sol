@@ -27,16 +27,13 @@ library LibBytes {
         }
     }
 
-    function rawRevert(bytes memory data, uint256 startOffset) internal pure {
-    }
-
     function destroySelector(bytes memory data)
         internal pure returns (bytes4 selector, bytes memory ptr)
     {
         uint256 dataLen = data.length;
         assert(dataLen >= 4);
         assembly ('memory-safe') {
-            selector := shl(252, shr(252, mload(add(data, 0x20))))
+            selector := shl(224, shr(224, mload(add(data, 0x20))))
             ptr := add(data, 0x4) 
             mstore(ptr, sub(dataLen, 0x4))
         }
@@ -175,7 +172,8 @@ contract HoneyPause {
         }
         // Pause the protocol.
         pot.pauser.pause();
-        // Pay the whitehat.
+        // Pay the whitehat. Protocol needs to be able to do this even though it is in
+        // a paused state.
         _payout(pot.payer, pot.payoutToken, payReceiver, pot.payoutAmount);
         emit Claimed(potId, pot.payoutToken, pot.payoutAmount);
     }

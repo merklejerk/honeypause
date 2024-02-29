@@ -13,6 +13,7 @@ import {
     InsufficientPayoutError,
     ExploitFailedError,
     ExploitSucceededError,
+    Claimed,
     Created,
     Cancelled,
     OnlyPotOperatorError
@@ -183,8 +184,63 @@ contract HoneyPauseTest is Test {
         honey.cancel(potId);
     }
 
-    function test_claim_goldenPath() external {
-        // ...
+    function test_claim_canClaim() external {
+        uint256 potId = _addTestPot(true);
+        address payable payReceiver = payable(makeAddr('RECEIVER'));
+        TestExploiter exploiter = new TestExploiter(true);
+        vm.expectEmit(true, true, true, true);
+        emit Claimed(potId, ETH_TOKEN, 100);
+        honey.claim(potId, payReceiver, exploiter, "");
+    }
+
+    function test_claim_PassesExploitDataToVerifier() external {
+        uint256 potId = _addTestPot(true);
+        address payable payReceiver = payable(makeAddr('RECEIVER'));
+        TestExploiter exploiter = new TestExploiter(true);
+        vm.expectEmit(true, true, true, true);
+        emit TestVerifier.BeforeExploitCalled(hex"1337");
+        vm.expectEmit(true, true, true, true);
+        emit TestVerifier.AssertExploitCalled(hex"1337", "");
+        honey.claim(potId, payReceiver, exploiter, hex"1337");
+    }
+
+    function test_claim_CallsPauser() external {
+        uint256 potId = _addTestPot(true);
+        address payable payReceiver = payable(makeAddr('RECEIVER'));
+        TestExploiter exploiter = new TestExploiter(true);
+        vm.expectEmit(true, true, true, true);
+        emit TestPauser.PauseCalled();
+        honey.claim(potId, payReceiver, exploiter, "");
+    }
+
+    function test_claim_paysReceiver() external {
+        uint256 potId = _addTestPot(true);
+        address payable payReceiver = payable(makeAddr('RECEIVER'));
+        TestExploiter exploiter = new TestExploiter(true);
+        honey.claim(potId, payReceiver, exploiter, "");
+        assertEq(payReceiver.balance, 100);
+    }
+
+    function test_claim_revertsIfExploitFails() external {
+        uint256 potId = _addTestPot(false);
+        address payable payReceiver = payable(makeAddr('RECEIVER'));
+        TestExploiter exploiter = new TestExploiter(true);
+        vm.expectRevert();
+        honey.claim(potId, payReceiver, exploiter, "");
+    }
+
+    function _addTestPot(bool willVerify)
+        private returns (uint256 potId)
+    {
+        return honey.add(
+            'TestProtocol',
+            ETH_TOKEN,
+            100,
+            new TestVerifier(true, willVerify),
+            new TestPauser(true),
+            new TestEthPayer{value: 100}(0),
+            address(this)
+        );
     }
 }
 
@@ -199,6 +255,23 @@ contract TestExploiter is IExploiter {
         if (!_succeeds) {
             revert TestError('exploit FAILED');
         }
+    }
+}
+
+contract TestPauser is IPauser {
+    event PauseCalled();
+
+    bool _succeeds;
+
+    constructor(bool succeeds) {
+        _succeeds = succeeds;
+    }
+
+    function pause() external {
+        if (!_succeeds) {
+            revert TestError('pause FAILED');
+        }
+        emit PauseCalled();
     }
 }
 
