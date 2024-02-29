@@ -1,6 +1,6 @@
 # HoneyPause
 
-HoneyPause is a permissionless, on-chain, non-custodial mechanism that allows whitehat hackers to objectively and transparently prove an exploit on a real live protocol, pause that protocol to protect it from future attacks, and then collect a bounty, all in an atomic fashion without need for arbitration. For Ethereum applications that can be exploited in a single transaction, this enables a novel form of proactive protection that can supplement traditional (off-chain) bug bounties.
+HoneyPause is a permissionless, on-chain, non-custodial mechanism that allows whitehat hackers to atmoically, objectively, and transparently prove an exploit on a live protocol, pause that protocol, and then collect a bounty. For Ethereum applications that can be exploited in a single transaction, this enables a novel form of proactive protection that can supplement traditional (off-chain) bug bounties, which usually involve potentially lengthy arbitrations.
 
 ## Flow
 
@@ -28,8 +28,7 @@ A whitehat that has discovered an exploit on a registered protocol will post a `
 
 > ⚠️ It is critical that the whitehat uses a private mempool to submit the transaction to in order to prevent an MEV bot from extracting the exploit from the unmined transaction and frontrunning the claim!
 
-As a further safeguard against clever MEV bots, it is recommended that the deployment of the **Exploiter** contract can be performed in the same transaction as (prior to) the `claim()` call. 
-
+As a further safeguard against extra clever MEV bots, it is recommended that the deployment of the **Exploiter** contract be performed in the same transaction as (prior to) the `claim()` call.
 
 ## Writing Verifiers
 
