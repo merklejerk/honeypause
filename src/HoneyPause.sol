@@ -148,6 +148,11 @@ contract HoneyPause {
             // Invalid pot or already claimed.
             revert InvalidClaimError();
         }
+        if (address(exploiter) == address(pot.pauser) ||
+            address(exploiter) == address(pot.payer))
+        {
+            revert InvalidExploitError();
+        }
         // Preemptively mark pot as claimed.
         pots[potId].operator = address(0);
         // Perform exploit in a sandbox.
