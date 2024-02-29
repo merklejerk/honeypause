@@ -21,13 +21,12 @@ A whitehat that has discovered an exploit on a registered protocol will post a `
     1. Call into the **Exploiter**, applying the exploit.
     2. Run the protocol's **Verifier** to assert that the protocol has reached an exploited state.
     3. Revert the call frame, undoing the exploit and bubbling up the result of 2.
-2. If the exploit was successful, the protocol will:
-    1. Call into the protocol's **Pauser** to freeze the protocol.
+2. If the exploit was successful, we will then:
+    1. Call into the protocol's **Pauser** to freeze the protocol!
     2. Call into the protocol's **Payer** to pay the bounty to the whitehat.
     3. Ensure the whitehat received the stipulated bounty amount.
 
-
-It is critical that the whitehat uses a private mempool to submit the transaction to in order to prevent an MEV bot from extracting the exploit from the unmined transaction and frontrunning the claim!
+> ⚠️ It is critical that the whitehat uses a private mempool to submit the transaction to in order to prevent an MEV bot from extracting the exploit from the unmined transaction and frontrunning the claim!
 
 As a further safeguard against clever MEV bots, it is recommended that the deployment of the **Exploiter** contract can be performed in the same transaction as (prior to) the `claim()` call. 
 
