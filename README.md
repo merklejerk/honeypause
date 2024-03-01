@@ -35,7 +35,12 @@ As a further safeguard against extra clever MEV bots, it is recommended that the
 TODO
 
 ## Deployed Addresses
-TODO
+
+| Chain | Address |
+|-------|---------|
+| Ethereum Mainnet | `TBD` |
+| Ethereum Sepolia | `0x834E2AcC62f963edF83C8E0af62cA038CC6fc392` |
+
 
 ## Credits
 TODO
