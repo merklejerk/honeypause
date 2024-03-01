@@ -202,7 +202,7 @@ contract HoneyPause {
         }
         // Preemptively mark bounty as claimed.
         bounties[bountyId].operator = address(0);
-        // Perform then exploit in a sandbox.
+        // Perform the exploit in a sandbox.
         try this.sandboxExploit(exploiter, bounty.verifier, exploiterData, verifierData) {
             // Should always fail.
             assert(false);
