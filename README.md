@@ -1,7 +1,8 @@
 # HoneyPause
 
-HoneyPause is a permissionless, on-chain, non-custodial mechanism that allows whitehat hackers to atmoically, objectively, and transparently prove an exploit on a live protocol, pause that protocol, and then collect a bounty. For Ethereum applications that can be exploited in a single transaction, this enables a novel form of proactive protection that can supplement traditional (off-chain) bug bounties, which usually involve potentially lengthy arbitrations.
+HoneyPause lets whitehats safely and atomically prove a smart contract exploit <i>on-chain</i>, pause the affected protocol, then collect a bounty. Protocols can opt into the system by registering a bounty on the smart contract. The entire system is permissionless, non-custodial, and free!
 
+For Ethereum applications that can be exploited in a single transaction, this adds another form of proactive defense that can supplement traditional (off-chain) bug bounties and monitoring.
 ## Flow
 
 ### Protocol Registration
