@@ -46,6 +46,6 @@ TODO
 ## Credits
 
 HoneyPause is an EthDenver hackathon project by the following sleep deprived folks:
-[@JordanCason](https://github.com/JordanCason)
-[@justinschuldt](https://github.com/justinschuldt)
-[@merklejer](https://github.com/merklejer)
+* [@JordanCason](https://github.com/JordanCason)
+* [@justinschuldt](https://github.com/justinschuldt)
+* [@merklejerk](https://github.com/merklejerk)
