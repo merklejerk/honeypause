@@ -52,7 +52,7 @@ Pausers should generally be designed to pause the *entire* protocol. Only the Ho
 
 ## Writing Payers
 
-Because the system is non-custodial, the Payer contract must be invoked by HoneyPause to transfer the bounty to the whitehat. Only the HoneyPause contract should be allowed to call the `payExploiter()` function. HoneyPause will track the balance of the whitehat to ensure funds have been delivered.
+Because the system is non-custodial, the Payer contract must be invoked by HoneyPause to transfer the bounty to the whitehat. Only the HoneyPause contract should be allowed to call the `payExploiter()` function. HoneyPause will track the balance of the whitehat to ensure funds have been delivered. Payments can be in ETH or an ERC20 token.
 
 Instead of reserving a pool of payment coins for the bounty, a protocol may choose to perform some kind of just-in-time conversion of its assets towards the bounty. But note that the call to `payExploiter()` actually occurs *after* the protocol has been paused. The delivery mechanism used needs to be distinct from usual operations affected by a pause. Also, be wary of complex conversions as that increases the chances of a secondary exploit occurring in the Payer.
 
