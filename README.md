@@ -39,8 +39,12 @@ TODO
 | Chain | Address |
 |-------|---------|
 | Ethereum Mainnet | `TBD` |
-| Ethereum Sepolia | `0x834E2AcC62f963edF83C8E0af62cA038CC6fc392` |
+| Ethereum Sepolia | `0x00a4748f0D0072f65aFe9bb52A723733c5878821` |
 
 
 ## Credits
-TODO
+
+HoneyPause is an EthDenver hackathon project by the following sleep deprived folks:
+[@JordanCason](https://github.com/JordanCason)
+[@justinschuldt](https://github.com/justinschuldt)
+[@merklejer](https://github.com/merklejer)
