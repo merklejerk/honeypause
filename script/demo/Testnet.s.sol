@@ -4,17 +4,25 @@ pragma solidity ^0.8.23;
 import { Script, console2 } from 'forge-std/Script.sol';
 import { ERC20 } from 'solmate/tokens/ERC20.sol';
 import { HoneyPause, IVerifier, IPauser, IPayer, ETH_TOKEN } from '../../src/HoneyPause.sol';
-import { SecretProtocol, SecretProtocolVerifier, SecretExploiter } from './SecretProtocol.sol';
+import {
+    SecretProtocol,
+    SecretProtocolVerifier,
+    SecretExploiter,
+    SecretProtocolPauser,
+    SecretProtocolPayer
+} from './SecretProtocol.sol';
 import { TestPayer, TestToken, SucceedingContract, FailingContract } from './Dummies.sol';
 
 contract Testnet is Script {
     uint256 deployerKey;
+    address deployer; 
     HoneyPause honey;
     TestToken usdc;
     address operator;
 
     function setUp() external {
         deployerKey = uint256(vm.envBytes32('DEPLOYER_KEY'));
+        deployer = vm.addr(deployerKey);
         honey = HoneyPause(vm.envAddress('HONEY'));
         usdc = TestToken(vm.envAddress('USDC'));
         operator = vm.envAddress('OPERATOR');
@@ -53,31 +61,18 @@ contract Testnet is Script {
     }
 
     function registerUsdcProtocol(string memory name, uint256 amount, bytes3 hash) external {
+        address pauserAddress = vm.computeCreateAddress(deployer, vm.getNonce(deployer) + 2);
         _broadcast();
-        SecretProtocol proto = new SecretProtocol(hash);
-        _broadcast();
-        IVerifier verifier = new SecretProtocolVerifier(proto);
-        IPauser pauser = IPauser(_deploySucceedingContract()) ;
-        IPayer payer = _deployPayerContract(usdc, amount);
-        _broadcast();
-        honey.add({
-            name: name,
-            payoutToken: usdc,
-            payoutAmount: amount,
-            verifier: verifier,
-            pauser: pauser,
-            payer: payer, 
-            operator: operator
-        });
-    }
-
-    function registerEthProtocol(string memory name, uint256 amount, bytes3 hash) external {
-        _broadcast();
-        SecretProtocol proto = new SecretProtocol(hash);
+        SecretProtocol proto = new SecretProtocol(hash, pauserAddress);
         _broadcast();
         IVerifier verifier = new SecretProtocolVerifier(proto);
-        IPauser pauser = IPauser(_deploySucceedingContract()) ;
-        IPayer payer = _deployPayerContract(ETH_TOKEN, amount);
+        _broadcast();
+        IPauser pauser = new SecretProtocolPauser(honey, proto);
+        assert(address(pauser) == pauserAddress);
+        _broadcast();
+        IPayer payer = new SecretProtocolPayer(honey);
+        _broadcast();
+        usdc.mint(address(payer), amount);
         _broadcast();
         honey.add({
             name: name,
