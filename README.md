@@ -32,10 +32,12 @@ A whitehat that has discovered an exploit on a registered project will submit a 
 
 > ⚠️ On Ethereum mainnet, it is critical that the whitehat uses a private mempool mechanism (e.g., Flashbots Protect with max privacy) to submit the transaction in order to prevent discovery of the exploit mechanism before the transaction is mined and the protocol can be paused! On other chains where sequencing cannot be practically frontrun, it may be sufficient to submit directly to the tx sequencer.
 
+You can check out an example trace of a claim tx [here](https://phalcon.blocksec.com/explorer/tx/sepolia/0xd3ce2ef3a80a6461142020909acc8499e8b6e893073c77d534734d7d129abdc7).
+
 ## Writing Verifiers
 **Verifier**s must confirm that some critical invariants or health checks have been violated in the post-exploit state. Projects need to do the legwork of identifying a robust set of checks that would be considered critical enough to warrant pausing the entire protocol. These would typically be invariants that do not get checked during normal user interactions due to gas constraints.
 
-### Double-Dipping
+### Two-Step Verification
 The **Verifier** contract should expose two methods: `beforeExploit()` and `assertExploit()`. As the names imply, the former is called before the exploit is executed and the latter is called after.
 
 **Verifier**s *must* implement both `beforeExploit()` and `assertExploit()`, and *both* should verify the protocol's invariants. This redundancy is to prevent an exploiter from actually exploiting the project and then claim the bounty on top of it! A notable quirk is that `beforeExploit()` is expected to revert if the protocol *is* currently exploited and `assertExploit()` is expected to revert if the protocol *is not* currently exploited.
@@ -62,8 +64,8 @@ The simplest **Payer** implementation will transfer the bounty directly out of a
 | Chain | Address |
 |-------|---------|
 | Ethereum Mainnet | `TBD` |
-| Ethereum Sepolia | `0x00a4748f0D0072f65aFe9bb52A723733c5878821` |
+| Ethereum Sepolia | [`0x5cd701310ae6e3185C29de433019C96efd298d60`](https://sepolia.etherscan.io/address/0x5cd701310ae6e3185c29de433019c96efd298d60) |
 
 ## Credits
 
-HoneyPause is originally an EthDenver 2024 hack by [@justinschuldt](https://github.com/justinschuldt), [@CryptRillionair](https://twitter.com/CryptRillionair), and [@merklejerk](https://github.com/merklejerk) but we ultimately want this project to be community owned, so feedback and contributions are welcome!
+HoneyPause is originally an EthDenver 2024 hack by [@justinschuldt](https://github.com/justinschuldt), [@CryptRillionair](https://twitter.com/CryptRillionair), and [@merklejerk](https://twitter.com/merklejerk), but we ultimately want this project to be community owned, so feedback and contributions are welcome!
