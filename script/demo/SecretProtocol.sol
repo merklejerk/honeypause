@@ -38,9 +38,10 @@ contract SecretProtocolVerifier is IVerifier {
     constructor(SecretProtocol proto_) { proto = proto_; }
 
     function beforeExploit(bytes memory)
-        external returns (bytes memory stateData)
+        external view returns (bytes memory)
     {
         require(proto.hash() != 0, 'already exploited');
+        return "";
     }
 
     function assertExploit(bytes memory, bytes memory) external view {

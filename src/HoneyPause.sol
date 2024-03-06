@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { ERC20 } from 'solmate/tokens/ERC20.sol';
 import { LibBytes } from './LibBytes.sol';
+import { LibSandbox, SandboxFailedError, SandboxSucceededError } from './LibSandbox.sol';
 
 /// @dev Interface for a protocol's verifier contract.
 interface IVerifier {
@@ -53,25 +54,23 @@ interface IPayer {
 ERC20 constant ETH_TOKEN = ERC20(address(0));
 
 error OnlyBountyOperatorError();
-error InvalidOperatorError();
 error InvalidClaimError();
 error InvalidExploitError();
 error InvalidBountyConfigError();
 error InsufficientPayoutError();
-error SandboxFailedError(bytes innerError);
-error SandboxSucceededError();
 
 event OperatorChanged(uint256 indexed bountyId, address oldOperator, address newOperator);
 event Created(uint256 bountyId, string name, ERC20 payoutToken, uint256 payoutAmount, IVerifier verifier);
+event Updated(uint256 indexed bountyId, ERC20 payoutToken, uint256 payoutAmount, IVerifier verifier);
 event Cancelled(uint256 bountyId);
 event Claimed(uint256 indexed bountyId, ERC20 payoutToken, uint256 payoutAmount);
 
 /// @notice An on-chain mechanism for atomically verifying an exploit,
-///         pausing a protocol, and paying out a reward. Made possible
-///         thanks to private mempools. Made for the EthDenver 2024 hackathon. 
-/// @author Lawrence Forman <@merklejerk>
+///         pausing a protocol, and paying out a reward. Works only with
+///         private mempools.
 contract HoneyPause {
     using LibBytes for bytes;
+    using LibSandbox for address;
 
     /// @dev A bounty record.
     struct Bounty {
@@ -84,13 +83,13 @@ contract HoneyPause {
     }
 
     /// @notice Number of bounties that have been registered, in total.
-    ///         The next bounty is simply the ID of this.
+    ///         The next bounty ID is simply this value + 1.
     uint256 public bountyCount;
     /// @notice Bounty ID -> bounty information.
-    mapping (uint256 bountyId => Bounty bounty) public bounties;
+    mapping (uint256 bountyId => Bounty bounty) public getBounty;
     
     modifier onlyBountyOperator(uint256 bountyId) {
-        if (msg.sender != bounties[bountyId].operator) {
+        if (msg.sender != getBounty[bountyId].operator) {
             revert OnlyBountyOperatorError();
         }
         _; 
@@ -99,13 +98,13 @@ contract HoneyPause {
     /// @notice Check whether a bounty has been claimed or is valid.
     /// @param bountyId The bounty.
     function isBountyClaimed(uint256 bountyId) external view returns (bool claimed) {
-        return bounties[bountyId].operator == address(0);
+        return getBounty[bountyId].operator == address(0);
     }
 
     /// @notice Add a new bounty for a protocol.
     /// @param name Name of the protocol to emit as part of the listing.
     /// @param payoutToken The token the bounty will be paid out in. 0 for ETH.
-    /// @param payoutToken The bounty amount (in wei).
+    /// @param payoutAmount The bounty amount (in wei).
     /// @param verifier The protocol's verifier contract, which asserts that critical invariants have been broken.
     /// @param pauser A privileged contract that can pause the protocol when called.
     /// @param operator Who can cancel this bounty.
@@ -122,14 +121,8 @@ contract HoneyPause {
         external returns (uint256 bountyId)
     {
         bountyId = ++bountyCount;
-        if (operator == address(0) ||
-            address(pauser) == address(0) ||
-            address(verifier) == address(0) ||
-            address(payer)  == address(0)
-        ) {
-            revert InvalidBountyConfigError();
-        }
-        bounties[bountyId]  = Bounty({
+        _validateBountyConfig({ operator: operator, pauser: pauser, verifier: verifier, payer: payer });
+        getBounty[bountyId]  = Bounty({
             operator: operator,
             payoutToken: payoutToken,
             payoutAmount: payoutAmount,
@@ -140,18 +133,35 @@ contract HoneyPause {
         emit Created(bountyId, name, payoutToken, payoutAmount, verifier);
     }
 
-    /// @notice Replace the operator for a valid (unclaimed) bounty.
+    /// @notice Update an existing, unclaimed bounty.
     /// @dev    Must be called by the current operator of a bounty.
-    /// @param bountyId The bounty.
-    /// @param newOperator The new operator address.
-    function replaceOperator(uint256 bountyId, address newOperator)
-        external onlyBountyOperator(bountyId)
+    /// @param bountyId ID of an existing bounty.
+    /// @param payoutToken The token the bounty will be paid out in. 0 for ETH.
+    /// @param payoutAmount The bounty amount (in wei).
+    /// @param verifier The protocol's verifier contract, which asserts that critical invariants have been broken.
+    /// @param pauser A privileged contract that can pause the protocol when called.
+    /// @param operator Who can cancel this bounty.
+    function update(
+        uint256 bountyId,
+        ERC20 payoutToken,
+        uint256 payoutAmount,
+        IVerifier verifier,
+        IPauser pauser,
+        IPayer payer,
+        address operator 
+    )
+        external onlyBountyOperator(bountyId) 
     {
-        if (newOperator == address(0)) {
-            revert InvalidOperatorError();
-        }
-        bounties[bountyId].operator = newOperator;
-        emit OperatorChanged(bountyId, msg.sender, newOperator);
+        _validateBountyConfig({ operator: operator, pauser: pauser, verifier: verifier, payer: payer });
+        getBounty[bountyId]  = Bounty({
+            operator: operator,
+            payoutToken: payoutToken,
+            payoutAmount: payoutAmount,
+            verifier: verifier,
+            pauser: pauser,
+            payer: payer
+        });
+        emit Updated(bountyId, payoutToken, payoutAmount, verifier);
     }
 
     /// @notice Cancel a bounty that has not been claimed.
@@ -160,7 +170,7 @@ contract HoneyPause {
     function cancel(uint256 bountyId)
         external onlyBountyOperator(bountyId)
     {
-        Bounty storage bounty = bounties[bountyId];
+        Bounty storage bounty = getBounty[bountyId];
         bounty.operator = address(0);
         emit Cancelled(bountyId);
     }
@@ -190,29 +200,14 @@ contract HoneyPause {
     )
         external
     {
-        Bounty memory bounty = bounties[bountyId];
-        if (bounty.operator == address(0)) {
-            // Invalid bounty or already claimed.
-            revert InvalidClaimError();
-        }
-        if (address(exploiter) == address(bounty.pauser) ||
-            address(exploiter) == address(bounty.payer))
-        {
-            revert InvalidExploitError();
-        }
-        // Preemptively mark bounty as claimed.
-        bounties[bountyId].operator = address(0);
-        // Perform the exploit in a sandbox.
-        try this.sandboxExploit(exploiter, bounty.verifier, exploiterData, verifierData) {
-            // Should always fail.
-            assert(false);
-        } catch (bytes memory errData) {
-            _handleSandboxCallRevert(errData);
-        }
-        // Pause the protocol.
-        bounty.pauser.pause();
-        // Pay the whitehat.
-        _payout(bounty.payer, bounty.payoutToken, payReceiver, bounty.payoutAmount);
+       Bounty memory bounty = _claim({
+           bountyId: bountyId,
+           payReceiver: payReceiver,
+           exploiter: exploiter,
+           exploiterData: exploiterData,
+           verifierData: verifierData,
+           skipExploit: false
+       }); 
         emit Claimed(bountyId, bounty.payoutToken, bounty.payoutAmount);
     }
 
@@ -227,45 +222,109 @@ contract HoneyPause {
     )
         external
     {
-        bytes memory verifierStateData;
-        try verifier.beforeExploit(verifierData) returns (bytes memory stateData_) {
-            verifierStateData = stateData_;
-        } catch (bytes memory errData) {
-            revert SandboxFailedError(errData);
-        }
-        try exploiter.exploit(exploiterData) {}
-        catch (bytes memory errData) {
-            revert SandboxFailedError(errData);
-        }
-        try verifier.assertExploit(verifierData, verifierStateData) {}
-        catch (bytes memory errData) {
-            revert SandboxFailedError(errData);
-        }
+        bytes memory verifierStateData = abi.decode(
+            address(verifier).safeCall(abi.encodeCall(
+                    verifier.beforeExploit,
+                    (verifierData)
+            )),
+            (bytes)
+        );
+        address(exploiter).safeCall(abi.encodeCall(
+            exploiter.exploit,
+            (exploiterData)
+        ));
+        address(verifier).safeCall(abi.encodeCall(
+            verifier.assertExploit,
+            (verifierData, verifierStateData)
+        ));
         revert SandboxSucceededError();
     }
 
-    // Look for successful sandbox revert data. Revert otherwise.
-    function _handleSandboxCallRevert(bytes memory errData) private pure {
-        if (errData.length >= 4) {
-            bytes4 selector;
-            (selector, errData) = errData.destroySelector();
-            if (selector == SandboxFailedError.selector) {
-                abi.decode(errData, (bytes)).rawRevert();
-            }
-            if (selector != SandboxSucceededError.selector) {
-                errData.rawRevert();
-            }
-        } else {
-            errData.rawRevert();
+    /// @notice Check whether a bounty can actually pay out its reward.
+    /// @dev    Not read-only because state needs to be temporarily modified to make this
+    ///         determination. All state is reverted before returning so this can
+    ///         be safely called on-chain but most likely it will be consumed off-chain
+    ///         via eth_call.
+    function verifyBountyCanPay(uint256 bountyId, address payable payReceiver)
+        external returns (bool bountyCanPay)
+    {
+        try this.sandboxTryPayBounty(bountyId, payReceiver) {
+            // Should always fail. 
+            assert(false);
+        } catch (bytes memory errData) {
+            return LibSandbox.handleSandboxCallRevert(errData, true);
         }
     }
+
+    /// @notice Mimics the logic for a successful claim() to verify that a bounty can
+    ///         pay its reward.
+    /// @dev Not intended to be called directly, but through `verifyBountyCanPay()`.
+    ///      Unprotected because it always reverts anyway.
+    function sandboxTryPayBounty(uint256 bountyId, address payable payReceiver)
+        external
+    {
+        _claim({
+            bountyId: bountyId,
+            payReceiver: payReceiver,
+            exploiter: IExploiter(address(0)),
+            exploiterData: '',
+            verifierData: '',
+            // To match state to that during a claim() we'll do everything
+            // it does minus the exploit verification.
+            skipExploit: true
+        });
+        revert SandboxSucceededError();
+    }
+
+    /// @dev The logic of claim(), refactored out for sandboxTryPayBounty().
+    function _claim(
+        uint256 bountyId,
+        address payable payReceiver,
+        IExploiter exploiter,
+        bytes memory exploiterData,
+        bytes memory verifierData,
+        bool skipExploit
+    )
+        internal
+        returns (Bounty memory bounty)
+    {
+        bounty = getBounty[bountyId];
+        if (bounty.operator == address(0)) {
+            // Invalid bounty or already claimed.
+            revert InvalidClaimError();
+        }
+        if (address(exploiter) == address(bounty.pauser) ||
+            address(exploiter) == address(bounty.payer))
+        {
+            revert InvalidExploitError();
+        }
+        // Preemptively mark the bounty as claimed/closed.
+        getBounty[bountyId].operator = address(0);
+        if (!skipExploit) {
+            // Perform the exploit in a sandbox.
+            try this.sandboxExploit(exploiter, bounty.verifier, exploiterData, verifierData) {
+                // Should always fail.
+                assert(false);
+            } catch (bytes memory errData) {
+                LibSandbox.handleSandboxCallRevert(errData, false);
+            }
+        }
+        // Pause the protocol.
+        address(bounty.pauser).safeCall(abi.encodeCall(bounty.pauser.pause, ()));
+        // Pay the bounty.
+        _payout(bounty.payer, bounty.payoutToken, payReceiver, bounty.payoutAmount);
+    }
+   
 
     // Call a bounty's payer contract and verify that it transferred the payment.
     function _payout(IPayer payer, ERC20 token, address payable to, uint256 amount)
         internal
     {
         uint256 balBefore = _balanceOf(token, to);
-        payer.payExploiter(token, to, amount);
+        address(payer).safeCall(abi.encodeCall(
+            payer.payExploiter,
+            (token, to, amount)
+        ));
         uint256 balAfter = _balanceOf(token, to);
         if (balBefore > balAfter || balAfter - balBefore < amount) {
             revert InsufficientPayoutError();
@@ -279,6 +338,26 @@ contract HoneyPause {
         if (token == ETH_TOKEN) {
             return owner.balance;
         }
-        return token.balanceOf(owner);
+        return abi.decode(address(token).safeStaticCall(abi.encodeCall(
+                token.balanceOf,
+                (owner)
+            )), (uint256)
+        );
+    }
+
+    // Check that all bounty addresses are nonzero.
+    function _validateBountyConfig(
+        address operator,
+        IPauser pauser,
+        IVerifier verifier,
+        IPayer payer
+    ) internal pure {
+        if (operator == address(0) ||
+            address(pauser) == address(0) ||
+            address(verifier) == address(0) ||
+            address(payer)  == address(0)
+        ) {
+            revert InvalidBountyConfigError();
+        }
     }
 }
