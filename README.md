@@ -1,8 +1,8 @@
 # HoneyPause
 
-HoneyPause is an onchain exploit bounty tied to a circuit breaker. HoneyPause lets whitehats safely and atomically prove a smart contract exploit <i>onchain</i>, pause the affected protocol, then collect a bounty-- all in a single transaction. Projects opt into the system by registering a bounty on the smart contract. The entire system is permissionless, non-custodial, and free!
+HoneyPause is an onchain exploit bounty linked to a circuit breaker. HoneyPause lets whitehats safely and atomically prove a smart contract exploit on chain, **pause** the affected protocol, then collect a bounty-- all in a single transaction. Projects opt into the system by registering a bounty on the smart contract. The entire system is permissionless, non-custodial, and free!
 
-For Ethereum protocols that can be exploited in a single transaction (which are common), this offers a novel form of proactive defense that can complement traditional (off-chain) bug bounties, threat monitoring, and in-protocol circuit breakers.
+For Ethereum protocols that can be exploited in a single transaction (which are often the case), this offers a novel form of proactive defense that can complement traditional (off-chain) bug bounties, threat monitoring, and in-protocol circuit breakers.
 
 ## How it Works
 
