@@ -59,14 +59,9 @@ If the **Verifier** applies any state changes (even transient ones), they should
 Because the exploit will be detailed onchain for all to see after the claim tx is made, **Pausers** should pause as much of the protocol to prevent replicating the exploit across related components (pools) of the system. Only the HoneyPause contract should be allowed to call `pause()` on the **Pauser** contract. The pause *must* occur when `Pauser.pause()` is called, and not in the payer, which is called immediately afterwards.
 
 ## Writing Pausers for Immutable Contracts
-
 For protocols that prioritize immutability as a gold standard, integrating HoneyPause offers a novel solution that blends the security benefits of immutable contracts with the flexibility to respond to unforeseen vulnerabilities. Immutable contracts can gain an additional layer of dynamic response capability through HoneyPause without sacrificing their core principle of immutability until proven necessary.
 
-Implementing a Pauser for such contracts involves designing a mechanism that is dormant under normal operation, thus preserving the contract's immutable nature. This mechanism activates only when a legitimate exploit is detected and a bounty is successfully claimed. This unique implementation allows the protocol to maintain its immutable status, with no ownership or control mechanisms in place, until an exploit is proven. Upon activation, the Pauser temporarily grants control to a predetermined team or recovery process, allowing for swift mitigation or repair actions.
-
-This approach provides the best of both worlds: the assurance and trust of an immutable contract, with a responsible safety net in place. It empowers protocols to benefit from the community's vigilance through HoneyPause, ensuring that they can respond effectively to critical threats while maintaining their foundational commitments to immutability and decentralization.
-
-By carefully constructing the Pauser to activate only in these critical circumstances, projects can introduce a new primitive to the ecosystem of immutable contracts on Ethereum. This not only enhances security but also aligns with the community's values by providing a transparent and controlled response mechanism that is activated only when necessary.
+Upon detecting a legitimate exploit, confirmed through a claim, the Pauser mechanism, designed to be dormant under normal conditions to preserve immutability, activates. This action temporarily assigns control to a designated recovery team, allowing for mitigation only compromising the contract's immutable nature when such intervention is unequivocally required and mitigates what would have otherwise destroyed the protocols functionality.
 
 ## Writing Payers
 The **Payer** contract will be invoked by HoneyPause to transfer the bounty to the whitehat. Bounties can be in either ETH or ERC20. HoneyPause will surround the `payExploiter()` call with balance checks to ensure that payment has been delivered. The **Payer** contract should only allow the HoneyPause contract to call its `payExploiter()` function.
