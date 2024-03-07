@@ -6,6 +6,7 @@ For Ethereum protocols that can be exploited in a single transaction (which are 
 
 ## How it Works
 
+
 ### Protocol Registration
 Projects register bounties with the HoneyPause contract via the `add()` function, providing:
 
@@ -18,6 +19,9 @@ Projects register bounties with the HoneyPause contract via the `add()` function
 > \* Note that the HoneyPause contract never custodies bounties. It is up to the project's **Payer** contract to surface funds to cover the bounty when called.
 
 ### Claiming a Bounty
+
+![contract flow](/assets/flow.jpg)
+
 A whitehat that has discovered an exploit on a registered project will submit a successful `claim()` transaction **TO A PRIVATE MEMPOOL**, providing an [`Exploiter`](./src/HoneyPause.sol#L35) contract that will perform the exploit when called by HoneyPause. In the same transaction, the HoneyPause contract will:
 
 1. Call into itself to enter a new call frame.
