@@ -18,7 +18,7 @@ Projects register bounties with the HoneyPause contract via the `add()` function
 > \* Note that the HoneyPause contract never custodies bounties. It is up to the project's **Payer** contract to surface funds to cover the bounty when called.
 
 ### Claiming a Bounty
-A whitehat that has discovered an exploit on a registered project will submit a successful `claim()` transaction **TO A PRIVATE MEMPOOL**, providing an **Exploiter** contract that will perform the exploit when called by HoneyPause. In the same transaction, the HoneyPause contract will:
+A whitehat that has discovered an exploit on a registered project will submit a successful `claim()` transaction **TO A PRIVATE MEMPOOL**, providing an [`Exploiter`](./src/HoneyPause.sol#L35) contract that will perform the exploit when called by HoneyPause. In the same transaction, the HoneyPause contract will:
 
 1. Call into itself to enter a new call frame.
     1. Run the project's **Verifier** to assert that the protocol has not been exploited yet and to track any necessary state.
