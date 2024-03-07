@@ -107,6 +107,7 @@ contract HoneyPause {
     /// @param payoutAmount The bounty amount (in wei).
     /// @param verifier The protocol's verifier contract, which asserts that critical invariants have been broken.
     /// @param pauser A privileged contract that can pause the protocol when called.
+    /// @param payer A contract that can pay the bounty when called.
     /// @param operator Who can cancel this bounty.
     /// @return bountyId The ID of the created bounty.
     function add(
