@@ -7,7 +7,7 @@ For Ethereum protocols that can be exploited in a single transaction (which are 
 ## How it Works
 
 ### Protocol Registration
-Projects register themselves to the HoneyPause contract via the `add()` function, providing:
+Projects register bounties with the HoneyPause contract via the `add()` function, providing:
 
 1. A bounty token and amount, but no deposit*.
 2. The address of a custom **Verifier** contract which asserts onchain state invariants that would be violated in the case of an exploit. Examples could be an AMM's reserve violating the constant product formula or a lending protocol incurring bad debt.
