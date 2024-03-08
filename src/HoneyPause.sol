@@ -27,8 +27,10 @@ interface IVerifier {
 /// @dev Interface for a protocol's pauser contract.
 interface IPauser {
     /// @dev Pause a protocol.
-    ///      The implementer MUST check that the caller of this function is the HoneyPause contract.
-    function pause() external;
+    ///      The implementer MUST check that the caller of this function is the HoneyPause contract
+    ///      and that the `bountyId` is one they recognize as their own.
+    /// @param bountyId ID of the bounty that triggered it.
+    function pause(uint256 bountyId) external;
 }
 
 /// @dev Interface for an exploit contract provided by a whitehat making a claim.
@@ -41,13 +43,15 @@ interface IExploiter {
 /// @dev Interface for a protocol's payer contract.
 interface IPayer {
     /// @dev Pay the whitehat the bounty after proving an exploit was possible.
-    ///      The implementer MUST check that the caller of this function is the HoneyPause contract.
-    ///      This payment mechanism should be distinct from typical protocol
+    ///      The implementer MUST check that the caller of this function is the HoneyPause contract
+    ///      and that the `bountyId` is one they recognize as their own.
+    ///      This payment mechanism should be distinct from user operations
     ///      interactions because this function will be called AFTER the pauser has been invoked.
+    /// @param bountyId ID of the bounty that triggered it.
     /// @param token The bounty token.
     /// @param to The receving account for payment.
     /// @param amount The bounty amount.
-    function payExploiter(ERC20 token, address payable to, uint256 amount) external;
+    function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external;
 }
 
 /// @dev ERC20 type alias for ETH.
@@ -312,20 +316,26 @@ contract HoneyPause {
             }
         }
         // Pause the protocol.
-        address(bounty.pauser).safeCall(abi.encodeCall(bounty.pauser.pause, ()));
+        address(bounty.pauser).safeCall(abi.encodeCall(bounty.pauser.pause, (bountyId)));
         // Pay the bounty.
-        _payout(bounty.payer, bounty.payoutToken, payReceiver, bounty.payoutAmount);
+        _payout(bountyId, bounty.payer, bounty.payoutToken, payReceiver, bounty.payoutAmount);
     }
    
 
     // Call a bounty's payer contract and verify that it transferred the payment.
-    function _payout(IPayer payer, ERC20 token, address payable to, uint256 amount)
+    function _payout(
+        uint256 bountyId,
+        IPayer payer,
+        ERC20 token,
+        address payable to,
+        uint256 amount
+    )
         internal
     {
         uint256 balBefore = _balanceOf(token, to);
         address(payer).safeCall(abi.encodeCall(
             payer.payExploiter,
-            (token, to, amount)
+            (bountyId, token, to, amount)
         ));
         uint256 balAfter = _balanceOf(token, to);
         if (balBefore > balAfter || balAfter - balBefore < amount) {

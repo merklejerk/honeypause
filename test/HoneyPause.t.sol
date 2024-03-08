@@ -54,38 +54,46 @@ contract HoneyPauseTest is Test {
 
     function test_payout_canPayERC20() external {
         IPayer payer = new TestERC20Payer(testToken, TEST_BOUNTY_AMOUNT);
-        honey.__payout(payer, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
+        vm.expectEmit(true, true, true, true);
+        emit TestERC20Payer.PayExploiterCalled(1337, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
+        honey.__payout(1337, payer, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
         assertEq(testToken.balanceOf(RECEIVER), TEST_BOUNTY_AMOUNT);
     }
 
     function test_payout_canPayZeroERC20() external {
         IPayer payer = new TestERC20Payer(testToken, 0);
-        honey.__payout(payer, testToken, RECEIVER, 0);
+        vm.expectEmit(true, true, true, true);
+        emit TestERC20Payer.PayExploiterCalled(1337, testToken, RECEIVER, 0);
+        honey.__payout(1337, payer, testToken, RECEIVER, 0);
         assertEq(testToken.balanceOf(RECEIVER), 0);
     }
 
     function test_payout_failsIfUnderpaysERC20() external {
         IPayer payer = new TestERC20Payer(testToken, TEST_BOUNTY_AMOUNT - 1);
         vm.expectRevert(InsufficientPayoutError.selector);
-        honey.__payout(payer, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
+        honey.__payout(1337, payer, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
     }
 
     function test_payout_canPayEth() external {
         IPayer payer = new TestEthPayer{value: TEST_BOUNTY_AMOUNT}();
-        honey.__payout(payer, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
+        vm.expectEmit(true, true, true, true);
+        emit TestERC20Payer.PayExploiterCalled(1337, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
+        honey.__payout(1337, payer, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
         assertEq(RECEIVER.balance, TEST_BOUNTY_AMOUNT);
     }
 
     function test_payout_canPayZeroEth() external {
         IPayer payer = new TestEthPayer();
-        honey.__payout(payer, ETH_TOKEN, RECEIVER, 0);
+        vm.expectEmit(true, true, true, true);
+        emit TestERC20Payer.PayExploiterCalled(1337, ETH_TOKEN, RECEIVER, 0);
+        honey.__payout(1337, payer, ETH_TOKEN, RECEIVER, 0);
         assertEq(RECEIVER.balance, 0);
     }
 
     function test_payout_failsIfUnderpaysEth() external {
         IPayer payer = new TestEthPayer{value: TEST_BOUNTY_AMOUNT - 1}();
         vm.expectRevert(InsufficientPayoutError.selector);
-        honey.__payout(payer, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
+        honey.__payout(1337, payer, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
     }
 
     function test_sandboxExploit_revertsOnSuccess() external {
@@ -361,7 +369,7 @@ contract HoneyPauseTest is Test {
         uint256 bountyId = _addTestBounty();
         IExploiter exploiter = new TestExploiter();
         vm.expectEmit(true, true, true, true);
-        emit TestPauser.PauseCalled();
+        emit TestPauser.PauseCalled(bountyId);
         honey.claim(bountyId, RECEIVER, exploiter, "", "");
     }
 
@@ -545,10 +553,10 @@ contract TestExploiter is IExploiter {
 }
 
 contract TestPauser is IPauser {
-    event PauseCalled();
+    event PauseCalled(uint256 bountyId);
 
-    function pause() external {
-        emit PauseCalled();
+    function pause(uint256 bountyId) external {
+        emit PauseCalled(bountyId);
     }
 }
 
@@ -575,11 +583,14 @@ contract TestVerifier is IVerifier {
 }
 
 contract TestERC20Payer is IPayer {
+    event PayExploiterCalled(uint256 bountyId, ERC20 token, address payable to, uint256 amount);
+
     constructor(TestERC20 token, uint256 reserve) {
         token.mint(address(this), reserve) ;
     }
 
-    function payExploiter(ERC20 token, address payable to, uint256) external {
+    function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external {
+        emit PayExploiterCalled(bountyId, token, to, amount);
         token.transfer(to, token.balanceOf(address(this)));
     }
 }
@@ -613,19 +624,27 @@ contract FailingContract {
 }
 
 contract TestEthPayer is IPayer {
+    event PayExploiterCalled(uint256 bountyId, ERC20 token, address payable to, uint256 amount);
     constructor() payable {}
 
-    function payExploiter(ERC20 token, address payable to, uint256) external {
+    function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external {
+        emit PayExploiterCalled(bountyId, token, to, amount);
         assert(token == ETH_TOKEN);
         return to.transfer(address(this).balance);
     }
 }
 
 contract TestHoneyPause is HoneyPause {
-    function __payout(IPayer payer, ERC20 token, address payable to, uint256 amount)
+    function __payout(
+        uint256 bountyId,
+        IPayer payer,
+        ERC20 token,
+        address payable to,
+        uint256 amount
+    )
         external
     {
-        _payout(payer, token, to, amount);
+        _payout(bountyId, payer, token, to, amount);
     }
 
     function __testSetBountyVerifier(uint256 bountyId, IVerifier verifier)

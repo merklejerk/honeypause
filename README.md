@@ -36,7 +36,7 @@ A whitehat that has discovered an exploit on a registered project will submit a 
 
 > ⚠️ On Ethereum mainnet, it is critical that the whitehat uses a private mempool mechanism (e.g., Flashbots Protect with max privacy) to submit the transaction in order to prevent discovery of the exploit mechanism before the transaction is mined and the protocol can be paused! On other chains where sequencing cannot be practically frontrun, it may be sufficient to submit directly to the tx sequencer.
 
-You can check out an example trace of a claim tx [here](https://phalcon.blocksec.com/explorer/tx/sepolia/0xd3ce2ef3a80a6461142020909acc8499e8b6e893073c77d534734d7d129abdc7).
+You can check out an example trace of a claim tx [here](https://phalcon.blocksec.com/explorer/tx/sepolia/0x1b957becc3839f34d1e7f221eeb7353e6073b69da91ac717478a64c3fd2bf291).
 
 ## Writing Verifiers
 **Verifier**s must confirm that some critical invariants or health checks have been violated in the post-exploit state. Projects need to do the legwork of identifying a robust set of checks that would be considered critical enough to warrant pausing the entire protocol. These would typically be invariants that do not get checked during normal user interactions due to gas constraints.
@@ -56,10 +56,10 @@ A **Verifier**'s `beforeExploit()` function returns arbitrary data. This will la
 If the **Verifier** applies any state changes (even transient ones), they should restrict the caller to the HoneyPause contract. Otherwise the **Verifier** may be maliciously invoked before the call to `claim()` to manipulate results.
 
 ## Writing Pausers
-Because the exploit will be detailed onchain for all to see after the claim tx is made, **Pausers** should pause as much of the protocol to prevent replicating the exploit across related components (pools) of the system. Only the HoneyPause contract should be allowed to call `pause()` on the **Pauser** contract. The pause *must* occur when `Pauser.pause()` is called, and not in the payer, which is called immediately afterwards.
+Because the exploit will be detailed onchain for all to see after the claim tx is made, **Pausers** should pause as much of the protocol to prevent replicating the exploit across related components (pools) of the system. Only the HoneyPause contract should be allowed to call `pause()` on the **Pauser** contract and the `bountyId` parameter should be confirmed to be one created by the project. The pause *must* occur when `Pauser.pause()` is called, and not in the payer, which is called immediately afterwards.
 
 ## Writing Payers
-The **Payer** contract will be invoked by HoneyPause to transfer the bounty to the whitehat. Bounties can be in either ETH or ERC20. HoneyPause will surround the `payExploiter()` call with balance checks to ensure that payment has been delivered. The **Payer** contract should only allow the HoneyPause contract to call its `payExploiter()` function.
+The **Payer** contract will be invoked by HoneyPause to transfer the bounty to the whitehat. Bounties can be in either ETH or ERC20. HoneyPause will surround the `payExploiter()` call with balance checks to ensure that payment has been delivered. The **Payer** contract should only allow the HoneyPause contract to call its `payExploiter()` function and the `bountyId` parameter should be confirmed to be one created by the project.
 
 The simplest **Payer** implementation will transfer the bounty directly out of a dedicated fund. Alternatively, a project may choose to keep the bounty value in its protocol and perform the conversion on-the-fly. In that case, the payment mechanism should be distinct from normal user operations on the protocol because the **Payer** will be invoked *after* the **Pauser**. Keep in mind that more complex payment mechanisms can open projects up to a secondary exploit.
 
@@ -68,7 +68,7 @@ The simplest **Payer** implementation will transfer the bounty directly out of a
 | Chain | Address |
 |-------|---------|
 | Ethereum Mainnet | `TBD` |
-| Ethereum Sepolia | [`0x5cd701310ae6e3185C29de433019C96efd298d60`](https://sepolia.etherscan.io/address/0x5cd701310ae6e3185c29de433019c96efd298d60) |
+| Ethereum Sepolia | [`0x4730fe5DB07c5092893B87A3Cf6740cA25ffE52A`](https://sepolia.etherscan.io/address/0x4730fe5DB07c5092893B87A3Cf6740cA25ffE52A) |
 
 ## Credits
 
