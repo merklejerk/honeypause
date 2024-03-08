@@ -13,7 +13,7 @@ Projects register bounties with the HoneyPause contract via the `add()` function
 1. A bounty token and amount, but no deposit*.
 2. The address of a custom [`Verifier`](ause/blob/main/src/HoneyPause.sol#L8) contract which asserts onchain state invariants that would be violated in the case of an exploit. Examples could be an AMM's reserve violating the constant product formula or a lending protocol incurring bad debt.
 3. The address of a custom [`Pauser`](./src/HoneyPause.sol#L28) contract which is authorized to pause/freeze the protocol when called by the HoneyPause contract.
-4. The address of a custom [`Payer`](./src/HoneyPause.sol#L42) contract which must pay the bounty to the whitehat when called by the HoneyPause contract. 
+4. The address of a custom [`Payer`](./src/HoneyPause.sol#L44) contract which must pay the bounty to the whitehat when called by the HoneyPause contract. 
 5. An operator account for the bounty, who will be able to modify the bounty.
 
 > \* Note that the HoneyPause contract never custodies bounties. It is up to the project's **Payer** contract to surface funds to cover the bounty when called.
