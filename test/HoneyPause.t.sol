@@ -509,7 +509,7 @@ contract HoneyPauseTest is Test {
         uint256 bountyAmount = 1 ether;
         uint256 legitimateBountyId = honey.add("LegitimateExploitTest", testToken, bountyAmount, new TestVerifier(), mockPauser, mockPayer, address(this));
 
-        // Create a fake bounty attempting to use the first bounty's pauser/payer with an always successful Verifyer
+        // Create a fake bounty attempting to use the first bounty's pauser/payer with an always successful Verifier
         uint256 fakeBountyId = honey.add("BogusExploitTest", testToken, bountyAmount, new TestVerifier(), mockPauser, mockPayer, address(this));
 
         IExploiter exploiter = new TestExploiter();
