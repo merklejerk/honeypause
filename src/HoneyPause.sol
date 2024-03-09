@@ -27,8 +27,10 @@ interface IVerifier {
 /// @dev Interface for a protocol's pauser contract.
 interface IPauser {
     /// @dev Pause a protocol.
-    ///      The implementer MUST check that the caller of this function is the HoneyPause contract.
-    function pause() external;
+    ///      The implementer MUST check that the caller of this function is the HoneyPause contract
+    ///      and that the `bountyId` is one they recognize as their own.
+    /// @param bountyId ID of the bounty that triggered it.
+    function pause(uint256 bountyId) external;
 }
 
 /// @dev Interface for an exploit contract provided by a whitehat making a claim.
@@ -41,13 +43,15 @@ interface IExploiter {
 /// @dev Interface for a protocol's payer contract.
 interface IPayer {
     /// @dev Pay the whitehat the bounty after proving an exploit was possible.
-    ///      The implementer MUST check that the caller of this function is the HoneyPause contract.
-    ///      This payment mechanism should be distinct from typical protocol
+    ///      The implementer MUST check that the caller of this function is the HoneyPause contract
+    ///      and that the `bountyId` is one they recognize as their own.
+    ///      This payment mechanism should be distinct from user operations
     ///      interactions because this function will be called AFTER the pauser has been invoked.
+    /// @param bountyId ID of the bounty that triggered it.
     /// @param token The bounty token.
     /// @param to The receving account for payment.
     /// @param amount The bounty amount.
-    function payExploiter(ERC20 token, address payable to, uint256 amount) external;
+    function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external;
 }
 
 /// @dev ERC20 type alias for ETH.
@@ -200,9 +204,10 @@ contract HoneyPause {
         bytes memory exploiterData,
         bytes memory verifierData
     )
-        external
+        external returns (uint256 payAmount)
     {
-       Bounty memory bounty = _claim({
+        Bounty memory bounty;
+       (bounty, payAmount) = _claim({
            bountyId: bountyId,
            payReceiver: payReceiver,
            exploiter: exploiter,
@@ -210,7 +215,7 @@ contract HoneyPause {
            verifierData: verifierData,
            skipExploit: false
        }); 
-        emit Claimed(bountyId, bounty.payoutToken, bounty.payoutAmount);
+        emit Claimed(bountyId, bounty.payoutToken, payAmount);
     }
 
     /// @notice Carries out an exploit, verifies it, then reverts the call frame.
@@ -239,7 +244,7 @@ contract HoneyPause {
             verifier.assertExploit,
             (verifierData, verifierStateData)
         ));
-        revert SandboxSucceededError();
+        revert SandboxSucceededError('');
     }
 
     /// @notice Check whether a bounty can actually pay out its reward.
@@ -247,15 +252,24 @@ contract HoneyPause {
     ///         determination. All state is reverted before returning so this can
     ///         be safely called on-chain but most likely it will be consumed off-chain
     ///         via eth_call.
+    /// @param bountyId ID of a valid, active bounty.
+    /// @param payReceiver Recepient of bounty.
+    /// @return bountyCanPay Whether the payer sent at least the bounty amount to the receiver.
+    /// @return payAmount Actual amount sent to receiver (may be more than bounty amount).
     function verifyBountyCanPay(uint256 bountyId, address payable payReceiver)
-        external returns (bool bountyCanPay)
+        external returns (bool bountyCanPay, uint256 payAmount)
     {
         try this.sandboxTryPayBounty(bountyId, payReceiver) {
             // Should always fail. 
             assert(false);
         } catch (bytes memory errData) {
-            return LibSandbox.handleSandboxCallRevert(errData, true);
+            if (!LibSandbox.handleSandboxCallRevert(errData, true)) {
+                return (false, 0);
+            }
+            // The data inside the SandboxSucceededError is the pay amount.
+            payAmount = abi.decode(abi.decode(errData.skip(4), (bytes)), (uint256));
         }
+        return (true, payAmount);
     }
 
     /// @notice Mimics the logic for a successful claim() to verify that a bounty can
@@ -265,7 +279,7 @@ contract HoneyPause {
     function sandboxTryPayBounty(uint256 bountyId, address payable payReceiver)
         external
     {
-        _claim({
+        (, uint256 payAmount) = _claim({
             bountyId: bountyId,
             payReceiver: payReceiver,
             exploiter: IExploiter(address(0)),
@@ -275,7 +289,7 @@ contract HoneyPause {
             // it does minus the exploit verification.
             skipExploit: true
         });
-        revert SandboxSucceededError();
+        revert SandboxSucceededError(abi.encode(payAmount));
     }
 
     /// @dev The logic of claim(), refactored out for sandboxTryPayBounty().
@@ -288,7 +302,7 @@ contract HoneyPause {
         bool skipExploit
     )
         internal
-        returns (Bounty memory bounty)
+        returns (Bounty memory bounty, uint256 payAmount)
     {
         bounty = getBounty[bountyId];
         if (bounty.operator == address(0)) {
@@ -312,25 +326,40 @@ contract HoneyPause {
             }
         }
         // Pause the protocol.
-        address(bounty.pauser).safeCall(abi.encodeCall(bounty.pauser.pause, ()));
+        address(bounty.pauser).safeCall(abi.encodeCall(bounty.pauser.pause, (bountyId)));
         // Pay the bounty.
-        _payout(bounty.payer, bounty.payoutToken, payReceiver, bounty.payoutAmount);
+        payAmount = _payout(
+            bountyId,
+            bounty.payer,
+            bounty.payoutToken,
+            payReceiver,
+            bounty.payoutAmount
+        );
     }
    
 
-    // Call a bounty's payer contract and verify that it transferred the payment.
-    function _payout(IPayer payer, ERC20 token, address payable to, uint256 amount)
+    // Call a bounty's payer contract, verify that it transferred the payment, and
+    // return the amount transferred.
+    function _payout(
+        uint256 bountyId,
+        IPayer payer,
+        ERC20 token,
+        address payable to,
+        uint256 amount
+    )
         internal
+        returns (uint256 payAmount)
     {
         uint256 balBefore = _balanceOf(token, to);
         address(payer).safeCall(abi.encodeCall(
             payer.payExploiter,
-            (token, to, amount)
+            (bountyId, token, to, amount)
         ));
         uint256 balAfter = _balanceOf(token, to);
         if (balBefore > balAfter || balAfter - balBefore < amount) {
             revert InsufficientPayoutError();
         }
+        return balAfter - balBefore;
     }
 
     // Get the balance of a token (or ETH) of an account.

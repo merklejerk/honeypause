@@ -38,9 +38,9 @@ contract HoneyPauseTest is Test {
     TestHoneyPause honey = new TestHoneyPause();
     TestERC20 testToken = new TestERC20();
     bytes TEST_ERROR = abi.encodeWithSelector(TestError.selector, 'FAILED');
-    bytes SANDBOX_SUCCEEDED_ERROR = abi.encodeWithSelector(SandboxSucceededError.selector);
+    bytes EMPTY_SANDBOX_SUCCEEDED_ERROR = abi.encodeWithSelector(SandboxSucceededError.selector, "");
     bytes WRAPPED_SANDBOX_SUCCEEDED_ERROR = abi.encodeWithSelector(SandboxFailedError.selector,
-        abi.encodeWithSelector(SandboxSucceededError.selector)
+        abi.encodeWithSelector(SandboxSucceededError.selector, "")
     );
 
     function test_errorSelectorsCanBeSandboxed() external {
@@ -54,44 +54,52 @@ contract HoneyPauseTest is Test {
 
     function test_payout_canPayERC20() external {
         IPayer payer = new TestERC20Payer(testToken, TEST_BOUNTY_AMOUNT);
-        honey.__payout(payer, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
+        vm.expectEmit(true, true, true, true);
+        emit TestERC20Payer.PayExploiterCalled(1337, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
+        honey.__payout(1337, payer, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
         assertEq(testToken.balanceOf(RECEIVER), TEST_BOUNTY_AMOUNT);
     }
 
     function test_payout_canPayZeroERC20() external {
         IPayer payer = new TestERC20Payer(testToken, 0);
-        honey.__payout(payer, testToken, RECEIVER, 0);
+        vm.expectEmit(true, true, true, true);
+        emit TestERC20Payer.PayExploiterCalled(1337, testToken, RECEIVER, 0);
+        honey.__payout(1337, payer, testToken, RECEIVER, 0);
         assertEq(testToken.balanceOf(RECEIVER), 0);
     }
 
     function test_payout_failsIfUnderpaysERC20() external {
         IPayer payer = new TestERC20Payer(testToken, TEST_BOUNTY_AMOUNT - 1);
         vm.expectRevert(InsufficientPayoutError.selector);
-        honey.__payout(payer, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
+        honey.__payout(1337, payer, testToken, RECEIVER, TEST_BOUNTY_AMOUNT);
     }
 
     function test_payout_canPayEth() external {
         IPayer payer = new TestEthPayer{value: TEST_BOUNTY_AMOUNT}();
-        honey.__payout(payer, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
+        vm.expectEmit(true, true, true, true);
+        emit TestERC20Payer.PayExploiterCalled(1337, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
+        honey.__payout(1337, payer, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
         assertEq(RECEIVER.balance, TEST_BOUNTY_AMOUNT);
     }
 
     function test_payout_canPayZeroEth() external {
         IPayer payer = new TestEthPayer();
-        honey.__payout(payer, ETH_TOKEN, RECEIVER, 0);
+        vm.expectEmit(true, true, true, true);
+        emit TestERC20Payer.PayExploiterCalled(1337, ETH_TOKEN, RECEIVER, 0);
+        honey.__payout(1337, payer, ETH_TOKEN, RECEIVER, 0);
         assertEq(RECEIVER.balance, 0);
     }
 
     function test_payout_failsIfUnderpaysEth() external {
         IPayer payer = new TestEthPayer{value: TEST_BOUNTY_AMOUNT - 1}();
         vm.expectRevert(InsufficientPayoutError.selector);
-        honey.__payout(payer, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
+        honey.__payout(1337, payer, ETH_TOKEN, RECEIVER, TEST_BOUNTY_AMOUNT);
     }
 
     function test_sandboxExploit_revertsOnSuccess() external {
         IVerifier verifier = new TestVerifier();
         IExploiter exploiter = new TestExploiter();
-        vm.expectRevert(SandboxSucceededError.selector);
+        vm.expectRevert(EMPTY_SANDBOX_SUCCEEDED_ERROR);
         honey.sandboxExploit(exploiter, verifier, "", "");
     }
 
@@ -128,7 +136,7 @@ contract HoneyPauseTest is Test {
     function test_sandboxExploit_wrapsSandboxSuccessFromVerifierBeforeExploitCall() external {
         IVerifier verifier = IVerifier(_createFailingFnContract(
             IVerifier.beforeExploit.selector,
-            SANDBOX_SUCCEEDED_ERROR
+            EMPTY_SANDBOX_SUCCEEDED_ERROR
         ));
         IExploiter exploiter = new TestExploiter();
         vm.expectRevert(WRAPPED_SANDBOX_SUCCEEDED_ERROR);
@@ -138,7 +146,7 @@ contract HoneyPauseTest is Test {
     function test_sandboxExploit_wrapsSandboxSuccessFromVerifierAssertExploitCall() external {
         IVerifier verifier = IVerifier(_createFailingFnContract(
             IVerifier.assertExploit.selector,
-            SANDBOX_SUCCEEDED_ERROR
+            EMPTY_SANDBOX_SUCCEEDED_ERROR
         ));
         TestExploiter exploiter = new TestExploiter();
         vm.expectRevert(WRAPPED_SANDBOX_SUCCEEDED_ERROR);
@@ -149,7 +157,7 @@ contract HoneyPauseTest is Test {
         IVerifier verifier = new TestVerifier();
         IExploiter exploiter = IExploiter(_createFailingFnContract(
             IExploiter.exploit.selector,
-            SANDBOX_SUCCEEDED_ERROR
+            EMPTY_SANDBOX_SUCCEEDED_ERROR
         ));
         vm.expectRevert(WRAPPED_SANDBOX_SUCCEEDED_ERROR);
         honey.sandboxExploit(exploiter, verifier, "", "");
@@ -168,7 +176,7 @@ contract HoneyPauseTest is Test {
         emit TestExploiter.ExploitCalled(exploiterData);
         vm.expectEmit(true, true, true, true);
         emit TestVerifier.AssertExploitCalled(verifierData, verifierStateData);
-        vm.expectRevert(SandboxSucceededError.selector);
+        vm.expectRevert(EMPTY_SANDBOX_SUCCEEDED_ERROR);
         honey.sandboxExploit(exploiter, verifier, exploiterData, verifierData);
     }
 
@@ -341,8 +349,9 @@ contract HoneyPauseTest is Test {
         IExploiter exploiter = new TestExploiter();
         vm.expectEmit(true, true, true, true);
         emit Claimed(bountyId, ETH_TOKEN, 100);
-        honey.claim(bountyId, RECEIVER, exploiter, "", "");
+        uint256 payAmount = honey.claim(bountyId, RECEIVER, exploiter, "", "");
         assertEq(honey.isBountyClaimed(bountyId), true);
+        assertEq(payAmount, TEST_BOUNTY_AMOUNT);
     }
 
     function test_claim_passesData() external {
@@ -361,7 +370,7 @@ contract HoneyPauseTest is Test {
         uint256 bountyId = _addTestBounty();
         IExploiter exploiter = new TestExploiter();
         vm.expectEmit(true, true, true, true);
-        emit TestPauser.PauseCalled();
+        emit TestPauser.PauseCalled(bountyId);
         honey.claim(bountyId, RECEIVER, exploiter, "", "");
     }
 
@@ -423,15 +432,26 @@ contract HoneyPauseTest is Test {
         uint256 bountyId = _addTestBounty();
         IExploiter exploiter = IExploiter(_createFailingFnContract(
             IExploiter.exploit.selector,
-            SANDBOX_SUCCEEDED_ERROR
+            EMPTY_SANDBOX_SUCCEEDED_ERROR
         ));
-        vm.expectRevert(SANDBOX_SUCCEEDED_ERROR);
+        vm.expectRevert(EMPTY_SANDBOX_SUCCEEDED_ERROR);
         honey.claim(bountyId, RECEIVER, exploiter, "", "");
     }
 
     function test_verifyBountyCanPay_returnsTrueIfBountyPays() external {
         uint256 bountyId = _addTestBounty();
-        assertEq(honey.verifyBountyCanPay(bountyId, RECEIVER), true);
+        (bool canPay, uint256 payAmount) = honey.verifyBountyCanPay(bountyId, RECEIVER);
+        assertEq(canPay, true);
+        assertEq(payAmount, TEST_BOUNTY_AMOUNT);
+    }
+
+    function test_verifyBountyCanPay_returnsTrueIfBountyPaysTooMuch() external {
+        uint256 bountyId = _addTestBounty();
+        (,,,,, IPayer payer) = honey.getBounty(bountyId);
+        payable(address(payer)).transfer(1);
+        (bool canPay, uint256 payAmount) = honey.verifyBountyCanPay(bountyId, RECEIVER);
+        assertEq(canPay, true);
+        assertEq(payAmount, TEST_BOUNTY_AMOUNT + 1);
     }
 
     function test_verifyBountyCanPay_doesNotModifyState() external {
@@ -449,7 +469,9 @@ contract HoneyPauseTest is Test {
             IPayer.payExploiter.selector,
             TEST_ERROR 
         )));
-        assertEq(honey.verifyBountyCanPay(bountyId, RECEIVER), false);
+        (bool canPay, uint256 payAmount) = honey.verifyBountyCanPay(bountyId, RECEIVER);
+        assertEq(canPay, false);
+        assertEq(payAmount, 0);
     }
 
     function test_verifyBountyCanPay_returnsFalseIfPauserReverts() external {
@@ -458,37 +480,92 @@ contract HoneyPauseTest is Test {
             IPauser.pause.selector,
             TEST_ERROR 
         )));
-        assertEq(honey.verifyBountyCanPay(bountyId, RECEIVER), false);
+        (bool canPay, uint256 payAmount) = honey.verifyBountyCanPay(bountyId, RECEIVER);
+        assertEq(canPay, false);
+        assertEq(payAmount, 0);
     }
 
     function test_verifyBountyCanPay_returnsFalseIfPayerDoesNotPayEnoughEth() external {
         uint256 bountyId = _addTestBounty();
         honey.__testSetBountyPayer(bountyId, new TestEthPayer{value: TEST_BOUNTY_AMOUNT - 1}());
-        assertEq(honey.verifyBountyCanPay(bountyId, RECEIVER), false);
+        (bool canPay, uint256 payAmount) = honey.verifyBountyCanPay(bountyId, RECEIVER);
+        assertEq(canPay, false);
+        assertEq(payAmount, 0);
     }
 
     function test_verifyBountyCanPay_returnsFalseIfPayerDoesNotPayEnoughErc20() external {
         uint256 bountyId = _addTestBounty();
         honey.__testSetBountyPayer(bountyId, new TestERC20Payer(testToken, TEST_BOUNTY_AMOUNT - 1));
-        assertEq(honey.verifyBountyCanPay(bountyId, RECEIVER), false);
+        (bool canPay, uint256 payAmount) = honey.verifyBountyCanPay(bountyId, RECEIVER);
+        assertEq(canPay, false);
+        assertEq(payAmount, 0);
     }
 
     function test_verifyBountyCanPay_returnsFalseIfPayerRevertsWithSandoxSucceeded() external {
         uint256 bountyId = _addTestBounty();
         honey.__testSetBountyPayer(bountyId, IPayer(_createFailingFnContract(
             IPayer.payExploiter.selector,
-            SANDBOX_SUCCEEDED_ERROR
+            EMPTY_SANDBOX_SUCCEEDED_ERROR
         )));
-        assertEq(honey.verifyBountyCanPay(bountyId, RECEIVER), false);
+        (bool canPay, uint256 payAmount) = honey.verifyBountyCanPay(bountyId, RECEIVER);
+        assertEq(canPay, false);
+        assertEq(payAmount, 0);
     }
 
     function test_verifyBountyCanPay_returnsFalseIfPauserRevertsWithSandoxSucceeded() external {
         uint256 bountyId = _addTestBounty();
         honey.__testSetBountyPauser(bountyId, IPauser(_createFailingFnContract(
             IPauser.pause.selector,
-            SANDBOX_SUCCEEDED_ERROR
+            EMPTY_SANDBOX_SUCCEEDED_ERROR
         )));
-        assertEq(honey.verifyBountyCanPay(bountyId, RECEIVER), false);
+        (bool canPay, uint256 payAmount) = honey.verifyBountyCanPay(bountyId, RECEIVER);
+        assertEq(canPay, false);
+        assertEq(payAmount, 0);
+    }
+
+    function test_bountyCannotUseAnotherBountyPauserPayer() external {
+        MockPauser mockPauser = new MockPauser();
+        MockPayer mockPayer = new MockPayer();
+
+        uint256 bountyAmount = 1 ether;
+
+        // Create legitimate and a fake bounty with the mock contracts.
+        uint256 legitimateBountyId = honey.add(
+            "Legitimate",
+            testToken,
+            bountyAmount,
+            new TestVerifier(),
+            mockPauser,
+            mockPayer,
+            address(this)
+        );
+
+        uint256 fakeBountyId = honey.add(
+            "ExploitTest",
+            testToken,
+            bountyAmount,
+            new TestVerifier(),
+            mockPauser,
+            mockPayer,
+            address(this)
+        );
+
+        IExploiter exploiter = new TestExploiter();
+
+        // Set the valid bountyId in mock contracts to the legitimate bountyId.
+        mockPauser.setValidBountyId(legitimateBountyId);
+        mockPayer.setValidBountyId(legitimateBountyId); 
+
+        // Test that the pauser receives the correct bountyId and reverts against the fake bountyId.
+        vm.expectRevert("Unauthorized bountyId in pauser");
+        honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
+
+        // Temporarily allow pausing for the fake bounty to test payer logic.
+        mockPauser.setValidBountyId(fakeBountyId); 
+
+        // Test that the payer also correctly identifies and reverts against fake bountyId claims.
+        vm.expectRevert("Unauthorized bountyId in payer");
+        honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
     }
 
     function _addTestBounty()
@@ -536,6 +613,31 @@ contract HoneyPauseTest is Test {
     }
 }
 
+contract MockPauser is IPauser {
+    uint256 private validBountyId;
+
+    function setValidBountyId(uint256 validBountyId_) external {
+        validBountyId = validBountyId_;
+    }
+
+    function pause(uint256 bountyId) external view {
+        require(bountyId == validBountyId, "Unauthorized bountyId in pauser");
+    }
+}
+
+contract MockPayer is IPayer {
+    uint256 private validBountyId;
+
+    function setValidBountyId(uint256 validBountyId_) external {
+        validBountyId = validBountyId_;
+    }
+
+    function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external override {
+        require(bountyId == validBountyId, "Unauthorized bountyId in payer");
+        token.transfer(to, amount);
+    }
+}
+
 contract TestExploiter is IExploiter {
     event ExploitCalled(bytes exploiterData);
     
@@ -545,10 +647,10 @@ contract TestExploiter is IExploiter {
 }
 
 contract TestPauser is IPauser {
-    event PauseCalled();
+    event PauseCalled(uint256 bountyId);
 
-    function pause() external {
-        emit PauseCalled();
+    function pause(uint256 bountyId) external {
+        emit PauseCalled(bountyId);
     }
 }
 
@@ -575,11 +677,14 @@ contract TestVerifier is IVerifier {
 }
 
 contract TestERC20Payer is IPayer {
+    event PayExploiterCalled(uint256 bountyId, ERC20 token, address payable to, uint256 amount);
+
     constructor(TestERC20 token, uint256 reserve) {
         token.mint(address(this), reserve) ;
     }
 
-    function payExploiter(ERC20 token, address payable to, uint256) external {
+    function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external {
+        emit PayExploiterCalled(bountyId, token, to, amount);
         token.transfer(to, token.balanceOf(address(this)));
     }
 }
@@ -613,19 +718,29 @@ contract FailingContract {
 }
 
 contract TestEthPayer is IPayer {
+    event PayExploiterCalled(uint256 bountyId, ERC20 token, address payable to, uint256 amount);
     constructor() payable {}
 
-    function payExploiter(ERC20 token, address payable to, uint256) external {
+    function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external {
+        emit PayExploiterCalled(bountyId, token, to, amount);
         assert(token == ETH_TOKEN);
         return to.transfer(address(this).balance);
     }
+
+    receive() external payable {}
 }
 
 contract TestHoneyPause is HoneyPause {
-    function __payout(IPayer payer, ERC20 token, address payable to, uint256 amount)
+    function __payout(
+        uint256 bountyId,
+        IPayer payer,
+        ERC20 token,
+        address payable to,
+        uint256 amount
+    )
         external
     {
-        _payout(payer, token, to, amount);
+        _payout(bountyId, payer, token, to, amount);
     }
 
     function __testSetBountyVerifier(uint256 bountyId, IVerifier verifier)
