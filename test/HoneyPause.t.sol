@@ -594,7 +594,7 @@ contract MockPayer is IPayer {
 
     function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external override {
         require(bountyId == validBountyId, "Unauthorized bountyId");
-        require(token.transfer(to, amount), "Transfer failed");
+        token.transfer(to, amount);
     }
 }
 
