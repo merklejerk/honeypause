@@ -499,6 +499,33 @@ contract HoneyPauseTest is Test {
         assertEq(honey.verifyBountyCanPay(bountyId, RECEIVER), false);
     }
 
+    function test_bountyCannotUseAnotherBountyPauserPayer() external {
+        MockPauser mockPauser = new MockPauser();
+        MockPayer mockPayer = new MockPayer();
+
+        testToken.mint(address(mockPayer), 100 ether);
+
+        // Create a legitimate bounty with the mock contracts
+        uint256 bountyAmount = 1 ether;
+        uint256 legitimateBountyId = honey.add("LegitimateExploitTest", testToken, bountyAmount, new TestVerifier(), mockPauser, mockPayer, address(this));
+
+        // Create a fake bounty attempting to use the first bounty's pauser/payer with an always successful Verifyer
+        uint256 fakeBountyId = honey.add("BogusExploitTest", testToken, bountyAmount, new TestVerifier(), mockPauser, mockPayer, address(this));
+
+        // Set the bountyId in mock contracts to the valid bountyId
+        mockPauser.setValidBountyId(legitimateBountyId);
+        mockPayer.setValidBountyId(legitimateBountyId);
+
+        IExploiter exploiter = new TestExploiter();
+
+        // Expecting failure due to bountyId checks in the impl of IPauser IPayer
+        vm.expectRevert("Unauthorized bountyId");
+        honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
+
+        // claim the legitimate bounty
+        honey.claim(legitimateBountyId, payable(address(this)), exploiter, "", "");
+    }
+
     function _addTestBounty()
         private returns (uint256 bountyId)
     {
@@ -542,45 +569,16 @@ contract HoneyPauseTest is Test {
         fc.setFnRevertData(fnSelector, alwaysRevertData);
         return payable(fc);
     }
-
-    function test_BountyCannotUseAnotherBountyPauserPayer() external {
-        MockPauser mockPauser = new MockPauser();
-        MockPayer mockPayer = new MockPayer();
-
-        testToken.mint(address(mockPayer), 100 ether);
-
-        // Create a legitimate bounty with the mock contracts
-        uint256 bountyAmount = 1 ether;
-        uint256 legitimateBountyId = honey.add("LegitimateExploitTest", testToken, bountyAmount, new TestVerifier(), mockPauser, mockPayer, address(this));
-
-        // Set the bountyId in mock contracts to the valid bountyId
-        mockPauser.setValidBountyId(legitimateBountyId);
-        mockPayer.setValidBountyId(legitimateBountyId);
-
-        // claim the legitimate bounty
-        IExploiter exploiter = new TestExploiter();
-        honey.claim(legitimateBountyId, payable(address(this)), exploiter, "", "");
-
-        // Create a fake bounty attempting to use the first bounty's pauser/payer with an always successful Verifyer
-        uint256 fakeBountyId = honey.add("BogusExploitTest", testToken, bountyAmount, new TestVerifier(), mockPauser, mockPayer, address(this));
-
-        // Expecting failure due to bountyId checks in the impl of IPauser IPayer
-        vm.expectRevert("Unauthorized bountyId");
-        honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
-    }
-
 }
 
 contract MockPauser is IPauser {
-    event PauseCalled(uint256 bountyId);
     uint256 private validBountyId;
 
     function setValidBountyId(uint256 _validBountyId) external {
         validBountyId = _validBountyId;
     }
 
-    function pause(uint256 bountyId) external {
-        emit PauseCalled(bountyId);
+    function pause(uint256 bountyId) external view {
         require(bountyId == validBountyId, "Unauthorized bountyId");
     }
 }
