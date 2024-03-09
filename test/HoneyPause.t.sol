@@ -499,6 +499,51 @@ contract HoneyPauseTest is Test {
         assertEq(honey.verifyBountyCanPay(bountyId, RECEIVER), false);
     }
 
+    function test_bountyCannotUseAnotherBountyPauserPayer() external {
+        MockPauser mockPauser = new MockPauser();
+        MockPayer mockPayer = new MockPayer();
+
+        uint256 bountyAmount = 1 ether;
+
+        // Create legitimate and a fake bounty with the mock contracts.
+        uint256 legitimateBountyId = honey.add(
+            "Legitimate",
+            testToken,
+            bountyAmount,
+            new TestVerifier(),
+            mockPauser,
+            mockPayer,
+            address(this)
+        );
+
+        uint256 fakeBountyId = honey.add(
+            "ExploitTest",
+            testToken,
+            bountyAmount,
+            new TestVerifier(),
+            mockPauser,
+            mockPayer,
+            address(this)
+        );
+
+        IExploiter exploiter = new TestExploiter();
+
+        // Set the valid bountyId in mock contracts to the legitimate bountyId.
+        mockPauser.setValidBountyId(legitimateBountyId);
+        mockPayer.setValidBountyId(legitimateBountyId); 
+
+        // Test that the pauser receives the correct bountyId and reverts against the fake bountyId.
+        vm.expectRevert("Unauthorized bountyId in pauser");
+        honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
+
+        // Temporarily allow pausing for the fake bounty to test payer logic.
+        mockPauser.setValidBountyId(fakeBountyId); 
+
+        // Test that the payer also correctly identifies and reverts against fake bountyId claims.
+        vm.expectRevert("Unauthorized bountyId in payer");
+        honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
+    }
+
     function _addTestBounty()
         private returns (uint256 bountyId)
     {
@@ -541,6 +586,31 @@ contract HoneyPauseTest is Test {
         FailingContract fc = new FailingContract();
         fc.setFnRevertData(fnSelector, alwaysRevertData);
         return payable(fc);
+    }
+}
+
+contract MockPauser is IPauser {
+    uint256 private validBountyId;
+
+    function setValidBountyId(uint256 validBountyId_) external {
+        validBountyId = validBountyId_;
+    }
+
+    function pause(uint256 bountyId) external view {
+        require(bountyId == validBountyId, "Unauthorized bountyId in pauser");
+    }
+}
+
+contract MockPayer is IPayer {
+    uint256 private validBountyId;
+
+    function setValidBountyId(uint256 validBountyId_) external {
+        validBountyId = validBountyId_;
+    }
+
+    function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external override {
+        require(bountyId == validBountyId, "Unauthorized bountyId in payer");
+        token.transfer(to, amount);
     }
 }
 
