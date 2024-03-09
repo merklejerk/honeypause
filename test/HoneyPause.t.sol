@@ -504,26 +504,45 @@ contract HoneyPauseTest is Test {
         MockPayer mockPayer = new MockPayer();
 
         testToken.mint(address(mockPayer), 100 ether);
-
-        // Create a legitimate bounty with the mock contracts
         uint256 bountyAmount = 1 ether;
-        uint256 legitimateBountyId = honey.add("LegitimateExploitTest", testToken, bountyAmount, new TestVerifier(), mockPauser, mockPayer, address(this));
 
-        // Create a fake bounty attempting to use the first bounty's pauser/payer with an always successful Verifier
-        uint256 fakeBountyId = honey.add("BogusExploitTest", testToken, bountyAmount, new TestVerifier(), mockPauser, mockPayer, address(this));
+        // Create legitimate and a fake bounty with the mock contracts.
+        uint256 legitimateBountyId = honey.add(
+            "Legitimate",
+            testToken,
+            bountyAmount,
+            new TestVerifier(),
+            mockPauser,
+            mockPayer,
+            address(this)
+        );
+
+        uint256 fakeBountyId = honey.add(
+            "ExploitTest",
+            testToken,
+            bountyAmount,
+            new TestVerifier(),
+            mockPauser,
+            mockPayer,
+            address(this)
+        );
 
         IExploiter exploiter = new TestExploiter();
 
-        // Set the bountyId in mock contracts to the valid bountyId
+        // Set the valid bountyId in mock contracts to the legitimate bountyId.
         mockPauser.setValidBountyId(legitimateBountyId);
-        mockPayer.setValidBountyId(legitimateBountyId);
+        mockPayer.setValidBountyId(legitimateBountyId); 
 
-        // Expecting failure due to bountyId checks in the impl of IPauser IPayer
+        // Test that the pauser receives the correct bountyId and reverts against the fake bountyId.
         vm.expectRevert("Unauthorized bountyId");
         honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
 
-        // claim the legitimate bounty
-        honey.claim(legitimateBountyId, payable(address(this)), exploiter, "", "");
+        // Temporarily allow pausing for the fake bounty to test payer logic.
+        mockPauser.setValidBountyId(fakeBountyId); 
+
+        // Test that the payer also correctly identifies and reverts against fake bountyId claims.
+        vm.expectRevert("Unauthorized bountyId");
+        honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
     }
 
     function _addTestBounty()
