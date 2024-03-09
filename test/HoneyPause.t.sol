@@ -503,7 +503,6 @@ contract HoneyPauseTest is Test {
         MockPauser mockPauser = new MockPauser();
         MockPayer mockPayer = new MockPayer();
 
-        testToken.mint(address(mockPayer), 100 ether);
         uint256 bountyAmount = 1 ether;
 
         // Create legitimate and a fake bounty with the mock contracts.
@@ -534,14 +533,14 @@ contract HoneyPauseTest is Test {
         mockPayer.setValidBountyId(legitimateBountyId); 
 
         // Test that the pauser receives the correct bountyId and reverts against the fake bountyId.
-        vm.expectRevert("Unauthorized bountyId");
+        vm.expectRevert("Unauthorized bountyId in pauser");
         honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
 
         // Temporarily allow pausing for the fake bounty to test payer logic.
         mockPauser.setValidBountyId(fakeBountyId); 
 
         // Test that the payer also correctly identifies and reverts against fake bountyId claims.
-        vm.expectRevert("Unauthorized bountyId");
+        vm.expectRevert("Unauthorized bountyId in payer");
         honey.claim(fakeBountyId, payable(address(this)), exploiter, "", "");
     }
 
@@ -598,7 +597,7 @@ contract MockPauser is IPauser {
     }
 
     function pause(uint256 bountyId) external view {
-        require(bountyId == validBountyId, "Unauthorized bountyId");
+        require(bountyId == validBountyId, "Unauthorized bountyId in pauser");
     }
 }
 
@@ -610,7 +609,7 @@ contract MockPayer is IPayer {
     }
 
     function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external override {
-        require(bountyId == validBountyId, "Unauthorized bountyId");
+        require(bountyId == validBountyId, "Unauthorized bountyId in payer");
         token.transfer(to, amount);
     }
 }
