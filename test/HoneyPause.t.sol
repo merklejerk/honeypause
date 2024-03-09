@@ -588,8 +588,8 @@ contract MockPauser is IPauser {
 contract MockPayer is IPayer {
     uint256 private validBountyId;
 
-    function setValidBountyId(uint256 _validBountyId) external {
-        validBountyId = _validBountyId;
+    function setValidBountyId(uint256 validBountyId_) external {
+        validBountyId = validBountyId_;
     }
 
     function payExploiter(uint256 bountyId, ERC20 token, address payable to, uint256 amount) external override {
