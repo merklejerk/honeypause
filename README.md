@@ -36,7 +36,7 @@ A whitehat that has discovered an exploit on a registered project will submit a 
 
 > ⚠️ On Ethereum mainnet, it is critical that the whitehat uses a private mempool mechanism (e.g., Flashbots Protect with max privacy) to submit the transaction in order to prevent discovery of the exploit mechanism before the transaction is mined and the protocol can be paused! On other chains where sequencing cannot be practically frontrun, it may be sufficient to submit directly to the tx sequencer.
 
-You can check out an example trace of a claim tx [here](https://phalcon.blocksec.com/explorer/tx/sepolia/0x1b957becc3839f34d1e7f221eeb7353e6073b69da91ac717478a64c3fd2bf291).
+You can check out an example trace of a claim tx [here](https://phalcon.blocksec.com/explorer/tx/sepolia/0x1b957becc3839f34d1e7f221eeb7353e6073b69da91ac717478a64c3fd2bf291) (older version).
 
 ## Writing Verifiers
 **Verifier**s must confirm that some critical invariants or health checks have been violated in the post-exploit state. Projects need to do the legwork of identifying a robust set of checks that would be considered critical enough to warrant pausing the entire protocol. These would typically be invariants that do not get checked during normal user interactions due to gas constraints.
@@ -68,7 +68,7 @@ The simplest **Payer** implementation will transfer the bounty directly out of a
 | Chain | Address |
 |-------|---------|
 | Ethereum Mainnet | `TBD` |
-| Ethereum Sepolia | [`0x4730fe5DB07c5092893B87A3Cf6740cA25ffE52A`](https://sepolia.etherscan.io/address/0x4730fe5DB07c5092893B87A3Cf6740cA25ffE52A) |
+| Ethereum Sepolia | [`0x81cb0ba5E7B724B03C8B64A5FAF4f2C655aD15E4`](https://sepolia.etherscan.io/address/0x81cb0ba5E7B724B03C8B64A5FAF4f2C655aD15E4) |
 
 ## Credits
 
