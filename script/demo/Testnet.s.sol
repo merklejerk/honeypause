@@ -72,7 +72,8 @@ contract Testnet is Script {
             hash,
             operator
         );
-        require(honey.verifyBountyCanPay(d.bountyId(), payable(tx.origin)), 'cannot pay');
+        (bool canPay,) = honey.verifyBountyCanPay(d.bountyId(), payable(tx.origin));
+        require(canPay, 'cannot pay');
     }
 
     function _broadcast() private {
