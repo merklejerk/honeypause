@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import { LibBytes } from './LibBytes.sol';
 
 error SandboxFailedError(bytes innerError);
-error SandboxSucceededError();
+error SandboxSucceededError(bytes data);
 
 library LibSandbox {
     using LibBytes for bytes;
